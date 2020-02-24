@@ -1,17 +1,16 @@
 'use strict';
 
-import React, {Component} from 'react';
+import React, { Component } from 'react';
 import {
   ActivityIndicator,
   Text,
   View,
   TouchableOpacity,
   StyleSheet,
+  PermissionsAndroid,
+  Image,
 } from 'react-native';
-import {RNCamera} from 'react-native-camera';
-
-import {FontAwesomeIcon} from '@fortawesome/react-native-fontawesome';
-import {camera} from '@fortawesome/free-solid-svg-icons';
+import { RNCamera } from 'react-native-camera';
 
 import AzureConnection from 'utils/AzureConnection.js';
 
@@ -19,22 +18,48 @@ import NavigationService from './NavigationService';
 
 export default class CameraFunction extends Component {
   state = {
-    hasPermission: null,
+    hasPermission: 'granted' === PermissionsAndroid.RESULTS.GRANTED,
     type: RNCamera.Constants.Type.back,
     processing: null,
     makePredicted: false,
   };
 
   async componentDidMount() {
-    const {status} = await RNCamera.requestPermissionsAsync();
-    this.setState({hasPermission: status === 'granted'});
+    try {
+      this.requestPermissions();
+    } catch (err) {
+      console.warn(err);
+    }
+  }
+
+  async requestPermissions() {
+    try {
+      const status = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.CAMERA,
+        {
+          title: 'Permission to use your camera',
+          message: 'LearnMyCar needs permission to use your camera.',
+          buttonPositive: 'Ok',
+        },
+      );
+      console.log('Permission status = ' + status);
+      if (status === 'granted') {
+        this.setState({ hasPermission: status === 'granted' });
+        console.log('For fucks sake!');
+      } else {
+        this.setState({ hasPermission: status === 'granted' });
+      }
+    } catch (err) {
+      console.warn(err);
+    }
   }
 
   render() {
     if (this.props.navigation.state.params.makePredicted) {
-      this.setState({makePredicted: true});
+      this.setState({ makePredicted: true });
     }
-    const {hasPermission} = this.state;
+    const { hasPermission } = this.state;
+    console.log(hasPermission);
     if (hasPermission === null) {
       return <View />;
     } else if (hasPermission === false) {
@@ -42,20 +67,26 @@ export default class CameraFunction extends Component {
         <View style={styles.viewOne}>
           <Text style={styles.textOne}>
             No authorisation to access to camera, please give this application
-            permission to continue!! You must now do this through your setting
+            permission to continue!! You must now do this through your settings
             or restart the application!!
           </Text>
+          <TouchableOpacity
+            style={{ padding: 10, backgroundColor: '#3A88E9' }}
+            onPress={() => this.requestPermissions()}>
+            <Text> Update Camera Settings </Text>
+          </TouchableOpacity>
         </View>
       );
     } else {
       return (
-        <View style={{flex: 1}}>
+        <View style={{ flex: 1 }}>
           <RNCamera
             ref={ref => {
               this.camera = ref;
             }}
-            style={{flex: 1}}
-            type={this.type}>
+            style={styles.cameraView}
+            type={this.type}
+            captureAudio={false}>
             <View style={styles.overlayStyle}>
               <View style={styles.overlayHeaderFooter} />
               <View style={styles.overlayMiddle}>
@@ -76,7 +107,10 @@ export default class CameraFunction extends Component {
                   animating={this.state.processing}
                 />
               ) : null}
-              <FontAwesomeIcon icon={camera} style={styles.fontA} />
+              <Image
+                source={require('assets/camera-icon-grey.png')}
+                style={styles.iconSize}
+              />
             </TouchableOpacity>
           </RNCamera>
         </View>
@@ -96,18 +130,17 @@ export default class CameraFunction extends Component {
 
   takePictureMake = async () => {
     console.log('takePictureMake');
-    this.setState({processing: true});
+    this.setState({ processing: true });
     if (this.camera) {
       if (this.props.navigation.state.params.trainNewVehicle) {
         console.log('Train new vehicle');
-        await this.camera
-          .takePictureAsync({skipProcessing: true})
-          .then(data => {
-            NavigationService.navigate('ImagePreview', {
-              imageUri: data.uri,
-              totrain: this.props.navigation.state.params.trainNewVehicle,
-            });
-          });
+        await this.camera.takePictureAsync({ skipProcessing: true });
+        //   .then(data => {
+        //     NavigationService.navigate('ImagePreview', {
+        //       imageUri: data.uri,
+        //       totrain: this.props.navigation.state.params.trainNewVehicle,
+        //     });
+        //   });
       } else {
         console.log('Predict Vehicle');
         await this.camera
@@ -206,6 +239,9 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
+  cameraView: {
+    flex: 1,
+  },
   touchable: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -213,10 +249,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     marginBottom: 20,
   },
-  fontA: {
-    color: '#fff',
-    fontSize: 40,
-    backgroundColor: '#000',
+  iconSize: {
+    height: 50,
+    width: 50,
     padding: 10,
   },
 });
